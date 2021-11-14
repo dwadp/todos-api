@@ -1,13 +1,19 @@
-package repositories
+package repository
 
 import (
+	"testing"
 	"time"
 
 	"github.com/dwadp/todos-api/internal/todo"
 	"github.com/dwadp/todos-api/internal/todo/repository"
+	"github.com/stretchr/testify/suite"
 )
 
-func (m *MysqlRepositoryTestSuite) TestMysqlTodoRepository_CreateTodo() {
+type TodoMysqlRepositoryTestSuite struct {
+	BaseMysqlTestSuite
+}
+
+func (m *TodoMysqlRepositoryTestSuite) Test_CreateTodo() {
 	now := time.Now()
 	newTodo := &todo.Todo{
 		Title:       "sample title",
@@ -28,7 +34,7 @@ func (m *MysqlRepositoryTestSuite) TestMysqlTodoRepository_CreateTodo() {
 	m.Assert().Equal(newTodo.DueDate.Format("2006-02-01 15:04:05"), result.DueDate.Format("2006-02-01 15:04:05"))
 }
 
-func (m *MysqlRepositoryTestSuite) TestMysqlTodoRepository_GetByID() {
+func (m *TodoMysqlRepositoryTestSuite) Test_GetByID() {
 	newTodo := &todo.Todo{
 		Title:       "first task",
 		Description: "first task description",
@@ -50,7 +56,7 @@ func (m *MysqlRepositoryTestSuite) TestMysqlTodoRepository_GetByID() {
 	m.Assert().Equal(newTodo.DueDate.Format("2006-02-01 15:04:05"), result.DueDate.Format("2006-02-01 15:04:05"))
 }
 
-func (m *MysqlRepositoryTestSuite) TestMysqlTodoRepository_GetAll() {
+func (m *TodoMysqlRepositoryTestSuite) Test_GetAll() {
 	firstTask := &todo.Todo{
 		Title:       "first task",
 		Description: "first task description",
@@ -73,4 +79,8 @@ func (m *MysqlRepositoryTestSuite) TestMysqlTodoRepository_GetAll() {
 	result, err := repo.GetAll()
 	m.Assert().NoError(err)
 	m.Assert().Equal(len(result), 2)
+}
+
+func TestTodoMysqlRepository(t *testing.T) {
+	suite.Run(t, &TodoMysqlRepositoryTestSuite{})
 }
