@@ -27,35 +27,29 @@ func (m *BaseMysqlTestSuite) SetupSuite() {
 		log.Fatal(err)
 	}
 	m.gormDB = dbConn
-
 	sqlDB, _ := dbConn.DB()
 	m.db = sqlDB
 }
 
-// func TestBaseMysqlTestSuite(t *testing.T) {
-// 	suite.Run(t, &BaseMysqlTestSuite{})
-// }
+func (m *BaseMysqlTestSuite) SetupTest() {
+	migration, err := createMigration(m.db)
 
-func (mr *BaseMysqlTestSuite) SetupTest() {
-	driver, _ := mysql.WithInstance(mr.db, &mysql.Config{})
-	m, err := migrate.NewWithDatabaseInstance("file://../../db/migration", "mysql", driver)
-
-	assert.NoError(mr.T(), err)
-
-	if err := m.Up(); err != nil {
+	assert.NoError(m.T(), err)
+	if err := migration.Up(); err != nil {
 		if err == migrate.ErrNoChange {
-			// just ignore
 			return
 		}
-
 		panic(err)
 	}
 }
 
-func (mr *BaseMysqlTestSuite) TearDownTest() {
-	driver, _ := mysql.WithInstance(mr.db, &mysql.Config{})
-	m, err := migrate.NewWithDatabaseInstance("file://../../db/migration", "mysql", driver)
+func (m *BaseMysqlTestSuite) TearDownTest() {
+	migration, err := createMigration(m.db)
+	assert.NoError(m.T(), err)
+	assert.NoError(m.T(), migration.Down())
+}
 
-	assert.NoError(mr.T(), err)
-	assert.NoError(mr.T(), m.Down())
+func createMigration(db *sql.DB) (*migrate.Migrate, error) {
+	driver, _ := mysql.WithInstance(db, &mysql.Config{})
+	return migrate.NewWithDatabaseInstance("file://../../db/migration", "mysql", driver)
 }
