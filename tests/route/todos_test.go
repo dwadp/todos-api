@@ -2,20 +2,60 @@ package routes
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/dwadp/todos-api/internal"
+	"github.com/dwadp/todos-api/internal/routes"
 	"github.com/dwadp/todos-api/internal/todo"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
-func TestTodosRoute(t *testing.T) {
-	app := internal.NewApp()
+type MockTodoRepo struct {
+	mock.Mock
+}
 
-	t.Run("get all todos should return 200 OK and the expected body", func(t *testing.T) {
+func (m MockTodoRepo) GetAll() ([]todo.Todo, error) {
+	args := m.Called()
+	return args.Get(0).([]todo.Todo), args.Error(1)
+}
+
+func (m MockTodoRepo) Create(t *todo.Todo) error {
+	return nil
+}
+
+func (m MockTodoRepo) GetByID(id int) (*todo.Todo, error) {
+	return nil, nil
+}
+
+func TestTodosRoute(t *testing.T) {
+
+	t.Run("it returns 2xx if there was no error", func(t *testing.T) {
+		app := internal.NewApp()
+		todoRepoMock := new(MockTodoRepo)
+		givenTodos := []todo.Todo{
+			{
+				ID:          1,
+				Title:       "example todo 1",
+				Description: "desc of example todo 1",
+				IsDone:      false,
+				DueDate:     time.Now(),
+			},
+			{
+				ID:          2,
+				Title:       "example todo 2",
+				Description: "desc of example todo 2",
+				IsDone:      false,
+				DueDate:     time.Now(),
+			},
+		}
+		todoRepoMock.On("GetAll").Return(givenTodos, nil)
+
+		routes.NewTodos(app, todoRepoMock).Register()
 		req := httptest.NewRequest("GET", "/v1/todos", nil)
 
 		resp, err := app.Test(req)
@@ -23,45 +63,29 @@ func TestTodosRoute(t *testing.T) {
 			t.Error(err)
 		}
 
+		var actualTodos []todo.Todo
 		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
-		expectedBody := []todo.Todo{
-			{
-				ID:          1,
-				Title:       "Clean the room",
-				Description: "Clean the fucking room",
-				IsDone:      true,
-				DueDate:     time.Now(),
-			},
-			{
-				ID:          2,
-				Title:       "Buy a macbook pro",
-				Description: "Buy a fucking macbook pro",
-				IsDone:      false,
-				DueDate:     time.Now().Add(time.Hour * 24),
-			},
-		}
+		assert.NoError(t, json.NewDecoder(resp.Body).Decode(&actualTodos))
+		assert.Equal(t, len(givenTodos), len(actualTodos))
+	})
 
-		resultBody := make([]todo.Todo, 2)
-		if err := json.NewDecoder(resp.Body).Decode(&resultBody); err != nil {
+	t.Run("it returns 5xx if there was an error in the repository", func(t *testing.T) {
+		app := internal.NewApp()
+		todoRepoMock := new(MockTodoRepo)
+		givenTodos := []todo.Todo{}
+
+		todoRepoMock.On("GetAll").
+			Return(givenTodos, fmt.Errorf("error querying to the database"))
+
+		routes.NewTodos(app, todoRepoMock).Register()
+		req := httptest.NewRequest("GET", "/v1/todos", nil)
+
+		resp, err := app.Test(req)
+		if err != nil {
 			t.Error(err)
 		}
 
-		for k, v := range resultBody {
-			assert.Equal(t, expectedBody[k].ID, v.ID)
-			assert.Equal(t, expectedBody[k].Title, v.Title)
-			assert.Equal(t, expectedBody[k].Description, v.Description)
-			assert.Equal(t, expectedBody[k].IsDone, v.IsDone)
-
-			expectedDueDate := expectedBody[k].DueDate
-			resultDueDate := v.DueDate
-
-			assert.Equal(t, expectedDueDate.Year(), resultDueDate.Year())
-			assert.Equal(t, expectedDueDate.Month(), resultDueDate.Month())
-			assert.Equal(t, expectedDueDate.Day(), resultDueDate.Day())
-		}
-
-		assert.Equal(t, len(resultBody), 2)
+		assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
 	})
-
 }

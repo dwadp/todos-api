@@ -1,12 +1,13 @@
 package internal
 
 import (
+	"fmt"
 	"log"
+	"os"
+	"os/signal"
 
 	"github.com/dwadp/todos-api/db"
-	"github.com/dwadp/todos-api/internal/routes"
 	"github.com/dwadp/todos-api/internal/todo"
-	todoRepo "github.com/dwadp/todos-api/internal/todo/repository"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -20,9 +21,26 @@ func NewApp() *fiber.App {
 
 	dbConn.AutoMigrate(&todo.Todo{})
 
-	todoRepository := todoRepo.NewTodoMysqlRepository(dbConn)
+	// todoRepository := todoRepo.NewTodoMysqlRepository(dbConn)
 
-	routes.NewTodos(app, todoRepository).Register()
+	// routes.NewTodos(app, todoRepository).Register()
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		fmt.Println("os interupt: gracefully shutting down the server")
+
+		db, _ := dbConn.DB()
+
+		if err := db.Close(); err != nil {
+			log.Fatalf("error closing database connection: [%v]", err)
+		}
+
+		if err := app.Shutdown(); err != nil {
+			log.Fatalf("error shutting down application: [%v]", err)
+		}
+	}()
 
 	return app
 }
